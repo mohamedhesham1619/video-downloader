@@ -2,22 +2,22 @@ package utils
 
 import (
 	"bufio"
+	"downloader/internal/models"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
-	"videos-downloader/internal/models"
 
 	"github.com/fatih/color"
 )
 
-// ReadUrlsFromFile reads URLs from a file and returns them as a slice of strings.
-// It ignores empty lines and trims whitespace from each line.
-func ReadUrlsFromFile(fileName string) ([]string, error) {
+// ReadLinesFromFile reads lines from a file and returns them as a slice of strings.
+// It ignores empty lines and removes leading and trailing whitespace from each line.
+func ReadLinesFromFile(fileName string) ([]string, error) {
 	file, err := os.Open(fileName)
 
 	if err != nil {
@@ -40,24 +40,37 @@ func ReadUrlsFromFile(fileName string) ([]string, error) {
 	return urls, nil
 }
 
-// create a video request object from a line of text
-// the line should be in one of these formats:
-// - url only: "https://www.youtube.com/watch?v=video_id"	(downloads full video)
-// - url and time range: "https://www.youtube.com/watch?v=video_id 00:00:00-00:02:00"	(downloads clip)
-// for clip download, the time range must be in the format HH:MM:SS-HH:MM:SS
-func ParseVideoRequest(line string) models.VideoRequest {
+// create a download request object from a line of text
+// the line must follow these rules:
+// - the first part is the url
+// - for clip download, the line must contain a time range in the format HH:MM:SS-HH:MM:SS
+// - for both clip and full video download, the quality can be specified using any number with "p" suffix (e.g., 1440p,1080p, 720p)
+//
+// Examples:
+// - https://www.video.com/watch?v=dQw4w9WgXcQ    (download the full video in best quality)
+// - https://www.video.com/watch?v=dQw4w9WgXcQ 1080p    (download the full video in 1080p quality)
+// - https://www.video.com/watch?v=dQw4w9WgXcQ 00:00:00-00:01:00    (download a clip from 00:00:00 to 00:01:00)
+// - https://www.video.com/watch?v=dQw4w9WgXcQ 1080p 00:00:00-00:01:00    (download a clip from 00:00:00 to 00:01:00 in 1080p quality)
+func ParseDownloadRequest(line string) models.DownloadRequest {
 
 	// split the line by spaces
 	parts := strings.Fields(line)
 
-	req := models.VideoRequest{
+	// the first part is the url
+	req := models.DownloadRequest{
 		Url: parts[0],
 	}
 
-	// if the line contains a time range, add it to the request
+	// if the line contains a time range or quality, add it to the request
 	if len(parts) > 1 {
-		req.IsClip = true
-		req.ClipTimeRange = parts[1]
+		for i := 1; i < len(parts); i++ {
+			if strings.Contains(parts[i], "-") {
+				req.IsClip = true
+				req.ClipTimeRange = parts[i]
+			} else if strings.HasSuffix(parts[i], "p") {
+				req.Quality = strings.TrimSuffix(parts[i], "p")
+			}
+		}
 	}
 
 	return req
@@ -124,33 +137,21 @@ func SanitizeFilename(filename string) string {
 	return string(sanitized)
 }
 
-// Returns the right command to be executed based on the OS
-// For Windows, the executable needs to be in the same directory as the Go binary and the command needs to be prefixed with "./"
-//
-// For other OSes, the command can be executed directly
-func GetCommand(command string) string {
+// Returns the absolute path to the command to be executed based on the OS
+func GetCommand(commandName string) string {
 	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("./%s", command)
+		commandName += ".exe"
 	}
-	return command
+	
+    binPath := filepath.Join("bin", commandName)
+	abs, err := filepath.Abs(binPath)
+	if err != nil {
+		return commandName
+	}
+	return abs
 }
 
-// Test if the GPU encoder is working
-// If the command runs successfully and doesn't return an error, the encoder is working
-func TestGpuEncoder(encoder string) bool {
-	testCmd := exec.Command(
-		GetCommand("ffmpeg"),
-		"-hide_banner",
-		"-loglevel", "error",
-		"-f", "lavfi",
-		"-i", "testsrc=duration=1",
-		"-c:v", encoder,
-		"-frames:v", "10",
-		"-f", "null",
-		"-",
-	)
-	return testCmd.Run() == nil
-}
+
 
 // FormatDuration formats a duration in seconds to a human-readable string (e.g., "2m 30s")
 func FormatDuration(seconds int) string {

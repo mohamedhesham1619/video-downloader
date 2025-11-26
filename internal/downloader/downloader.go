@@ -1,12 +1,12 @@
 package downloader
 
 import (
+	"downloader/internal/config"
+	"downloader/internal/models"
+	"downloader/internal/utils"
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"videos-downloader/internal/config"
-	"videos-downloader/internal/models"
-	"videos-downloader/internal/utils"
 
 	"github.com/fatih/color"
 )
@@ -21,16 +21,12 @@ func New(cfg *config.Config) *Downloader {
 	}
 }
 
-func (d *Downloader) Download(video models.VideoRequest) error {
+func (d *Downloader) Download(video models.DownloadRequest) error {
 	var command *exec.Cmd
 	var err error
 
 	if video.IsClip {
-		command, err = d.buildClipDownloadCommand(video)
-
-		if err != nil {
-			return err
-		}
+		command = d.buildClipDownloadCommand(video)
 	} else {
 		command = d.buildFullDownloadCommand(video)
 	}
@@ -45,7 +41,7 @@ func (d *Downloader) Download(video models.VideoRequest) error {
 	output, err := command.CombinedOutput()
 
 	if err != nil {
-		return fmt.Errorf("%s%v%s", color.RedString("error downloading ("), video.Url, color.RedString("): "+err.Error()+"\nOutput: "+string(output)))
+		return fmt.Errorf("%v\nOutput: %s", err, string(output))
 	}
 
 	if video.IsClip {
@@ -57,7 +53,7 @@ func (d *Downloader) Download(video models.VideoRequest) error {
 }
 
 // prepare the command to download the whole video
-func (d *Downloader) buildFullDownloadCommand(req models.VideoRequest) *exec.Cmd {
+func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
 	// yt-dlp output template: "%(title).244s.%(ext)s"
 	// - %(title)s: video title from metadata
@@ -67,7 +63,7 @@ func (d *Downloader) buildFullDownloadCommand(req models.VideoRequest) *exec.Cmd
 
 	cmd := exec.Command(
 		utils.GetCommand("yt-dlp"),
-		"-f", "b",
+		"-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best", // This will get the best quality
 		"-o", downloadPath,
 		req.Url)
 
@@ -75,7 +71,7 @@ func (d *Downloader) buildFullDownloadCommand(req models.VideoRequest) *exec.Cmd
 }
 
 // prepare the command to download a clip of the video
-func (d *Downloader) buildClipDownloadCommand(req models.VideoRequest) (*exec.Cmd, error) {
+func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
 	// Prepare the download path with the video title
 	// yt-dlp output template: "%(title).244s.%(ext)s"
@@ -93,11 +89,11 @@ func (d *Downloader) buildClipDownloadCommand(req models.VideoRequest) (*exec.Cm
 		req.Url,
 	}
 
-	// If not in fast mode, add --postprocessor-args to force re-encoding with the selected encoder
-	if !d.Config.IsFastMode {
-		args = append(args, "--postprocessor-args", fmt.Sprintf("all=-c:v %s", d.Config.Encoder))
+	// If the user choose to re-encode clips, add --postprocessor-args to force re-encoding with the selected encoder
+	if d.Config.ShouldReEncode {
+		args = append(args, "--postprocessor-args", fmt.Sprintf("ffmpeg=-c:v %s", d.Config.Encoder))
 	}
 
 	cmd := exec.Command(utils.GetCommand("yt-dlp"), args...)
-	return cmd, nil
+	return cmd
 }

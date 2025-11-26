@@ -2,48 +2,76 @@ package main
 
 import (
 	"bufio"
+	"downloader/internal/config"
+	"downloader/internal/dependencies"
+	"downloader/internal/downloader"
+	"downloader/internal/models"
+	"downloader/internal/utils"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
-	"videos-downloader/internal/config"
-	"videos-downloader/internal/downloader"
-	"videos-downloader/internal/utils"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 )
 
 func main() {
-	cfg := config.New()
-	downloader := downloader.New(cfg)
 
-	urls, err := utils.ReadUrlsFromFile("urls.txt")
-
+	// Ensure all needed dependencies are ready
+	err := dependencies.EnsureReady()
 	if err != nil {
-		log.Fatal("Error reading urls from file \n", err)
+		log.Fatal(err)
 	}
 
+	// check if the urls.txt file exists
+	if _, err := os.Stat("urls.txt"); os.IsNotExist(err) {
+		log.Fatal("urls.txt file not found in the current directory")
+	}
+
+	// read urls from file
+	urls, err := utils.ReadLinesFromFile("urls.txt")
+
+	if err != nil {
+		log.Fatal("Error reading urls from urls.txt file \n", err)
+	}
+
+	// parse urls into download requests and check if there are clip requests
+	downloadRequests := make([]models.DownloadRequest, len(urls))
+	shouldPromptClipDownloadMethods := false
+
+	for i, url := range urls {
+		downloadRequests[i] = utils.ParseDownloadRequest(url)
+		if downloadRequests[i].IsClip {
+			shouldPromptClipDownloadMethods = true
+		}
+	}
+
+	// if there is any clip request, prompt the user to select the clip download method
+	shouldReEncode := false
+
+	if shouldPromptClipDownloadMethods {
+		shouldReEncode, err = promptClipDownloadMethod()
+		if err != nil {
+			log.Fatal("Error prompting clip download method", err)
+		}
+	}
+
+	// initialize config and downloader
+	cfg := config.New(shouldReEncode)
+	downloader := downloader.New(cfg)
+
 	wg := sync.WaitGroup{}
-	wg.Add(len(urls))
+	wg.Add(len(downloadRequests))
 
 	// start downloading videos concurrently
-	for _, url := range urls {
+	for _, downloadRequest := range downloadRequests {
 		go func() {
-			videoRequest := utils.ParseVideoRequest(url)
-			err := downloader.Download(videoRequest)
+			err := downloader.Download(downloadRequest)
 
 			if err != nil {
-				// if the download fails and fast mode is not enabled, try to download the video without re-encoding
-				if !cfg.IsFastMode {
-					fmt.Printf("%s failed to download video(%s)\n Trying again without re-encoding\n", color.RedString("Error:"), url)
-					cfg.IsFastMode = true
-					err = downloader.Download(videoRequest)
-					if err != nil {
-						fmt.Printf("%s %v\n", color.RedString("Failed to download video even in fast mode:"), err)
-					} else {
-						fmt.Printf("%s Downloaded successfully in fast mode.\n", color.GreenString("Success:"))
-					}
-				}
+				fmt.Printf("%s failed to download video(%s): %v\n", color.RedString("Error:"), downloadRequest.Url, err)
 			}
 			wg.Done()
 		}()
@@ -55,4 +83,25 @@ func main() {
 	// Wait for user input before exiting
 	fmt.Print("\nAll downloads completed. Press Enter to exit...\n")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
+}
+
+// Prompt the user to select the download method for clips (should re-encode or not)
+func promptClipDownloadMethod() (shouldReEncode bool, err error) {
+	var selectedOption string
+	prompt := &survey.Select{
+		Message: "How would you like to download clips?",
+		Options: []string{
+			"⚡ Fast (recommended) - Clips may start a few seconds early or have frozen frames at the start",
+			"🎯 Accurate - Switch to this if Fast didn't work properly (much slower)",
+		},
+	}
+
+	err = survey.AskOne(prompt, &selectedOption)
+	if err != nil {
+		return false, err
+	}
+
+	shouldReEncode = strings.Contains(selectedOption, "Accurate")
+
+	return shouldReEncode, nil
 }

@@ -3,3 +3,4 @@ release/*
 !release/.gitkeep
 *.mp4
 *.txt
+test/

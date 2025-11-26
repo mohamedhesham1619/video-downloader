@@ -1,12 +1,12 @@
 package config
 
 import (
+	"downloader/internal/utils"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
-	"videos-downloader/internal/models"
-	"videos-downloader/internal/utils"
 
 	"github.com/fatih/color"
 	"github.com/jaypipes/ghw"
@@ -17,58 +17,69 @@ type Config struct {
 	// the path to the download directory (the default is the directory where the program is executed)
 	DownloadPath string
 
-	// if true, the downloader will use fast mode (copies streams directly without re-encoding)
-	IsFastMode bool
+	// if true, the downloader will re-encode clips using the encoder specified in the config
+	ShouldReEncode bool
 
-	// Encoder specifies the FFmpeg video encoder to use.
-	// For normal mode:
-	// - Uses GPU encoder if available
-	// - Falls back to CPU encoding (libx264) if GPU encoder is not available
-	// For fast mode (fast flag is used):
-	// - Ignores the encoder and copy the streams directly without re-encoding
+	// the encoder to use for re-encoding if ShouldUseEncoder is true
 	Encoder string
 }
 
-func New() *Config {
+func New(shouldReEncode bool) *Config {
 
-	pathFlag := flag.String("path", "", "path to the download directory (the default is the current directory)")
-
-	fastFlag := flag.Bool("fast", false, "Fast mode: copies streams directly without re-encoding. Much faster but clips may start slightly early or have frozen frames at the beginning")
+	downloadPathFlag := flag.String("path", "", "path to the download directory (the default is the current directory)")
 
 	flag.Parse()
 
-	encoder := ""
+	// if the user provides a path flag, the downloaded videos will be saved in that directory. Otherwise, they will be saved in the "Downloads" folder in the current folder.
+	downloadPath := *downloadPathFlag
 
-	// If the fast flag is not used, select the encoder based on the GPU. If the GPU is not detected or the GPU encoder is not working, the CPU encoder will be used.
-
-	// If the fast flag is used, the encoder will be ignored and the streams will be copied directly without re-encoding.
-	if !*fastFlag {
-		encoder = selectEncoder()
-	} else {
-		color.Cyan("Fast mode enabled: copying streams directly without re-encoding.\n")
-	}
-
-	cfg := &Config{
-		DownloadPath: *pathFlag,
-		Encoder:      encoder,
-		IsFastMode:   *fastFlag,
-	}
-
-	// if the user provides a path flag, the downloaded videos will be saved in that directory. Otherwise, they will be saved in the "downloads" folder in the current directory.
-	if cfg.DownloadPath == "" {
-		err := os.MkdirAll("downloads", os.ModePerm)
+	if downloadPath == "" {
+		err := os.MkdirAll("Downloads", os.ModePerm)
 		if err != nil {
-			fmt.Printf("Error creating downloads directory: %v Will use the current directory instead.\n\n", err)
-			cfg.DownloadPath = ""
+			fmt.Printf("Error creating Downloads folder: %v Will use the current folder instead.\n\n", err)
+			downloadPath = ""
 		} else {
-			cfg.DownloadPath = "downloads"
+			downloadPath = "Downloads"
 		}
 
+	}
+
+	// If shouldReEncode is true, select the encoder to use based on the GPU. 
+	// If the GPU is not detected or the GPU encoder is not working, the CPU encoder will be used.
+	encoder := ""
+
+	if shouldReEncode {
+		encoder = selectEncoder()
+	}
+
+	// create the config
+	cfg := &Config{
+		DownloadPath: downloadPath,
+		Encoder:      encoder,
+		ShouldReEncode: shouldReEncode,
 	}
 
 	return cfg
 }
 
+const (
+	// GPU vendors
+	NvidiaGPU = "nvidia"
+	AMDGPU    = "amd"
+	IntelGPU  = "intel"
+
+	// Default CPU encoder
+	CPUEncoder = "libx264"
+)
+
+// GPUEncoders maps GPU names to their corresponding encoder names
+var GPUEncoders = map[string]string{
+	NvidiaGPU: "h264_nvenc",
+	AMDGPU:    "h264_amf",
+	IntelGPU:  "h264_qsv",
+}
+
+// Detect the GPU vendor name
 func detectGpu() (string, error) {
 
 	gpuInfo, err := ghw.GPU()
@@ -84,25 +95,42 @@ func detectGpu() (string, error) {
 	switch {
 
 	case strings.Contains(gpuVendorName, "nvidia"):
-		gpu = models.NvidiaGPU
+		gpu = NvidiaGPU
 	case strings.Contains(gpuVendorName, "amd") || strings.Contains(gpuVendorName, "advanced micro devices"):
-		gpu = models.AMDGPU
+		gpu = AMDGPU
 	case strings.Contains(gpuVendorName, "intel"):
-		gpu = models.IntelGPU
+		gpu = IntelGPU
 	}
 
 	return gpu, nil
 
 }
 
-// If the fast flag is not used, the encoder will be selected based on the GPU. If the GPU is not detected or the GPU encoder is not working, the CPU encoder will be used.
+// Test if the GPU encoder is working
+// If the command runs successfully and doesn't return any error, the encoder is working
+func isGpuEncoderWorking(encoder string) bool {
+	testCmd := exec.Command(
+		utils.GetCommand("ffmpeg"),
+		"-hide_banner",
+		"-loglevel", "error",
+		"-f", "lavfi",
+		"-i", "testsrc=duration=1",
+		"-c:v", encoder,
+		"-frames:v", "10",
+		"-f", "null",
+		"-",
+	)
+	return testCmd.Run() == nil
+}
+
+// The encoder will be selected based on the GPU. If the GPU is not detected or the GPU encoder is not working, the CPU encoder will be used.
 func selectEncoder() string {
 	gpu, err := detectGpu()
-	if err != nil || gpu == "" || !utils.TestGpuEncoder(models.GPUEncoders[gpu]) {
-		color.Cyan("Could not use GPU encoder. Falling back to CPU encoder: %s\n", models.CPUEncoder)
-		return models.CPUEncoder
+	if err != nil || gpu == "" || !isGpuEncoderWorking(GPUEncoders[gpu]) {
+		color.Cyan("Could not use GPU encoder. Falling back to CPU encoder: %s\n", CPUEncoder)
+		return CPUEncoder
 	}
 
-	color.Cyan("Using %s encoder: %s\n", gpu, models.GPUEncoders[gpu])
-	return models.GPUEncoders[gpu]
+	color.Cyan("Using %s encoder: %s\n", gpu, GPUEncoders[gpu])
+	return GPUEncoders[gpu]
 }
