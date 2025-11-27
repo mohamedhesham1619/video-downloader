@@ -1,6 +1,7 @@
 package config
 
 import (
+	"downloader/internal/models"
 	"downloader/internal/utils"
 	"flag"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/jaypipes/ghw"
 )
 
@@ -17,6 +17,9 @@ type Config struct {
 	// the path to the download directory (the default is the directory where the program is executed)
 	DownloadPath string
 
+	// the video format to download
+	VideoFormat models.VideoFormat
+
 	// if true, the downloader will re-encode clips using the encoder specified in the config
 	ShouldReEncode bool
 
@@ -24,7 +27,7 @@ type Config struct {
 	Encoder string
 }
 
-func New(shouldReEncode bool) *Config {
+func New(shouldReEncode bool, videoFormat models.VideoFormat) *Config {
 
 	downloadPathFlag := flag.String("path", "", "path to the download directory (the default is the current directory)")
 
@@ -44,7 +47,7 @@ func New(shouldReEncode bool) *Config {
 
 	}
 
-	// If shouldReEncode is true, select the encoder to use based on the GPU. 
+	// If shouldReEncode is true, select the encoder to use based on the GPU.
 	// If the GPU is not detected or the GPU encoder is not working, the CPU encoder will be used.
 	encoder := ""
 
@@ -54,8 +57,9 @@ func New(shouldReEncode bool) *Config {
 
 	// create the config
 	cfg := &Config{
-		DownloadPath: downloadPath,
-		Encoder:      encoder,
+		DownloadPath:   downloadPath,
+		VideoFormat:    videoFormat,
+		Encoder:        encoder,
 		ShouldReEncode: shouldReEncode,
 	}
 
@@ -127,10 +131,8 @@ func isGpuEncoderWorking(encoder string) bool {
 func selectEncoder() string {
 	gpu, err := detectGpu()
 	if err != nil || gpu == "" || !isGpuEncoderWorking(GPUEncoders[gpu]) {
-		color.Cyan("Could not use GPU encoder. Falling back to CPU encoder: %s\n", CPUEncoder)
 		return CPUEncoder
 	}
 
-	color.Cyan("Using %s encoder: %s\n", gpu, GPUEncoders[gpu])
 	return GPUEncoders[gpu]
 }

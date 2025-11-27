@@ -6,14 +6,13 @@ import (
 	"downloader/internal/dependencies"
 	"downloader/internal/downloader"
 	"downloader/internal/models"
+	"downloader/internal/ui"
 	"downloader/internal/utils"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sync"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 )
 
@@ -48,24 +47,47 @@ func main() {
 		}
 	}
 
+	// prompt the user to select the preferred video format
+	preferredFormat, err := ui.PromptVideoFormat()
+	if err != nil {
+		log.Fatal("Error prompting video format", err)
+	}
+
 	// if there is any clip request, prompt the user to select the clip download method
 	shouldReEncode := false
 
 	if shouldPromptClipDownloadMethods {
-		shouldReEncode, err = promptClipDownloadMethod()
+		shouldReEncode, err = ui.PromptClipDownloadMethod()
 		if err != nil {
 			log.Fatal("Error prompting clip download method", err)
 		}
 	}
 
 	// initialize config and downloader
-	cfg := config.New(shouldReEncode)
+	cfg := config.New(shouldReEncode, preferredFormat)
 	downloader := downloader.New(cfg)
 
+	// Add spacing between prompts and downloads
+	fmt.Println()
+	fmt.Println("Starting downloads...")
+	fmt.Println("----------------------------------------")
+	fmt.Println()
+
+	// Print the encoder that will be used for clips
+	if shouldReEncode {
+		if cfg.Encoder == config.CPUEncoder {
+			color.Cyan("Could not use GPU encoder. Falling back to CPU encoder: %s\n", cfg.Encoder)
+
+		} else {
+			color.Cyan("Using GPU encoder: %s\n", cfg.Encoder)
+		}
+		fmt.Println()
+	}
+
+	// start downloading videos concurrently
 	wg := sync.WaitGroup{}
 	wg.Add(len(downloadRequests))
 
-	// start downloading videos concurrently
 	for _, downloadRequest := range downloadRequests {
 		go func() {
 			err := downloader.Download(downloadRequest)
@@ -83,25 +105,4 @@ func main() {
 	// Wait for user input before exiting
 	fmt.Print("\nAll downloads completed. Press Enter to exit...\n")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
-}
-
-// Prompt the user to select the download method for clips (should re-encode or not)
-func promptClipDownloadMethod() (shouldReEncode bool, err error) {
-	var selectedOption string
-	prompt := &survey.Select{
-		Message: "How would you like to download clips?",
-		Options: []string{
-			"⚡ Fast (recommended) - Clips may start a few seconds early or have frozen frames at the start",
-			"🎯 Accurate - Switch to this if Fast didn't work properly (much slower)",
-		},
-	}
-
-	err = survey.AskOne(prompt, &selectedOption)
-	if err != nil {
-		return false, err
-	}
-
-	shouldReEncode = strings.Contains(selectedOption, "Accurate")
-
-	return shouldReEncode, nil
 }
