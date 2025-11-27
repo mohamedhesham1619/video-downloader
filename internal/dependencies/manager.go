@@ -2,6 +2,7 @@ package dependencies
 
 import (
 	"downloader/internal/ui"
+	"fmt"
 	"sync"
 )
 
@@ -9,6 +10,10 @@ import (
 // download the missing dependencies,
 // and ensure yt-dlp is up-to-date
 func EnsureReady() error {
+	// Print header
+	fmt.Println("Verifying dependencies...")
+	fmt.Println()
+
 	programs := []string{"yt-dlp", "ffmpeg", "deno"}
 	progressLines := make(map[string]*ui.ProgressLine)
 	ytdlpExists := false
@@ -55,6 +60,12 @@ func EnsureReady() error {
 
 	wg.Wait()
 
+	// Stop multi-printer to add spacing
+	ui.StopMultiPrinter()
+
+	// Add blank line between phases
+	fmt.Println()
+
 	// Phase 2: Check for yt-dlp updates (only if it already existed)
 	if ytdlpExists {
 		updateLine := ui.ShowLoading("Checking for yt-dlp updates")
@@ -86,6 +97,12 @@ func EnsureReady() error {
 
 	// Stop the multi-printer at the end
 	ui.StopMultiPrinter()
+
+	// Print footer
+	fmt.Println()
+	fmt.Println("Dependencies ready!")
+	fmt.Println("----------------------------------------")
+	fmt.Println()
 
 	return nil
 }

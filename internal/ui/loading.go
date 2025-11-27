@@ -9,13 +9,17 @@ import (
 
 var (
 	multiPrinter *pterm.MultiPrinter
-	once         sync.Once
+	mu           sync.Mutex
 )
 
-// StopMultiPrinter stops the multi-printer
+// StopMultiPrinter stops the multi-printer and allows it to be restarted
 func StopMultiPrinter() {
+	mu.Lock()
+	defer mu.Unlock()
+
 	if multiPrinter != nil {
 		multiPrinter.Stop()
+		multiPrinter = nil
 	}
 }
 
@@ -27,11 +31,13 @@ type ProgressLine struct {
 
 // ShowLoading shows a loading spinner with custom message and returns a handle to complete it
 func ShowLoading(message string) *ProgressLine {
-	once.Do(func() {
+	mu.Lock()
+	if multiPrinter == nil {
 		multi := pterm.DefaultMultiPrinter
 		multi.Start()
 		multiPrinter = &multi
-	})
+	}
+	mu.Unlock()
 
 	customSpinner := pterm.DefaultSpinner
 
