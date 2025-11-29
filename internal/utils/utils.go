@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -76,38 +75,26 @@ func ParseDownloadRequest(line string) models.DownloadRequest {
 	return req
 }
 
-// parse clip timing info
-// for ffmpeg to accurately extract the needed clip, it needs the start time and clip duration in seconds
-func ParseClipDuration(timeRange string) (start string, duration string, err error) {
-	// Split the range into start and end times
+// CalculateClipDurationInSeconds the clip duration in seconds from a time range in format "hh:mm:ss-hh:mm:ss"
+func CalculateClipDurationInSeconds(timeRange string) (int, error) {
+	// Split the time range string into start and end times
 	parts := strings.Split(timeRange, "-")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid time range format. Expected HH:MM:SS-HH:MM:SS")
-	}
 
-	startTime := parts[0]
-	endTime := parts[1]
-
-	// Parse times to calculate duration
-	layout := "15:04:05"
-
-	t1, err := time.Parse(layout, startTime)
+	// Parse the start and end times
+	startTime, err := time.Parse("15:04:05", parts[0])
 	if err != nil {
-		return "", "", fmt.Errorf("invalid start time: %v", err)
+		return 0, fmt.Errorf("invalid start time format: %v", err)
 	}
 
-	t2, err := time.Parse(layout, endTime)
+	endTime, err := time.Parse("15:04:05", parts[1])
 	if err != nil {
-		return "", "", fmt.Errorf("invalid end time: %v", err)
+		return 0, fmt.Errorf("invalid end time format: %v", err)
 	}
 
-	// Calculate duration in seconds
-	durationSeconds := int(t2.Sub(t1).Seconds())
+	// Calculate the duration in seconds
+	duration := int(endTime.Sub(startTime).Seconds())
 
-	// Convert duration to string
-	duration = strconv.Itoa(durationSeconds)
-
-	return startTime, duration, nil
+	return duration, nil
 }
 
 // sanitize the filename to remove or replace characters that are problematic in filenames
@@ -137,21 +124,19 @@ func SanitizeFilename(filename string) string {
 	return string(sanitized)
 }
 
-// Returns the absolute path to the command to be executed based on the OS
-func GetCommand(commandName string) string {
+// Returns the absolute path to the binary to be executed based on the OS
+func GetBinaryPath(binaryName string) string {
 	if runtime.GOOS == "windows" {
-		commandName += ".exe"
+		binaryName += ".exe"
 	}
-	
-    binPath := filepath.Join("bin", commandName)
+
+	binPath := filepath.Join("bin", binaryName)
 	abs, err := filepath.Abs(binPath)
 	if err != nil {
-		return commandName
+		return binaryName
 	}
 	return abs
 }
-
-
 
 // FormatDuration formats a duration in seconds to a human-readable string (e.g., "2m 30s")
 func FormatDuration(seconds int) string {
@@ -165,16 +150,17 @@ func FormatDuration(seconds int) string {
 
 // Formats a user-friendly message for clip downloads
 func FormatClipDownloadMessage(timeRange string) string {
-	_, durationStr, err := ParseClipDuration(timeRange)
-	if err != nil {
-		return ""
-	}
 
-	durationSecs, _ := strconv.Atoi(durationStr)
+	durationSecs, _ := CalculateClipDurationInSeconds(timeRange)
 	startTime, endTime := strings.Split(timeRange, "-")[0], strings.Split(timeRange, "-")[1]
 
 	return fmt.Sprintf("Downloading clip: %s duration (from %s to %s)",
 		color.CyanString(FormatDuration(durationSecs)),
 		color.YellowString(startTime),
 		color.YellowString(endTime))
+}
+
+// IsYouTubeURL returns true if the URL is a YouTube link.
+func IsYouTubeURL(url string) bool {
+	return strings.Contains(url, "youtube.com") || strings.Contains(url, "youtu.be")
 }

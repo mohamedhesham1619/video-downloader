@@ -40,8 +40,8 @@ func PromptClipDownloadMethod() (shouldReEncode bool, err error) {
 	prompt := &survey.Select{
 		Message: "How would you like to download clips?",
 		Options: []string{
-			"⚡ Fast (recommended) - Clips may start a few seconds early or have frozen frames at the start",
-			"🎯 Accurate - Switch to this if Fast didn't work properly (much slower)",
+			"Fast (recommended) - Clips may start a few seconds early or have frozen frames at the start",
+			"Accurate - Switch to this if Fast didn't work properly (much slower)",
 		},
 	}
 

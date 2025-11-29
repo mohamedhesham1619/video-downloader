@@ -114,7 +114,7 @@ func detectGpu() (string, error) {
 // If the command runs successfully and doesn't return any error, the encoder is working
 func isGpuEncoderWorking(encoder string) bool {
 	testCmd := exec.Command(
-		utils.GetCommand("ffmpeg"),
+		utils.GetBinaryPath("ffmpeg"),
 		"-hide_banner",
 		"-loglevel", "error",
 		"-f", "lavfi",

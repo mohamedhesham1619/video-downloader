@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"downloader/internal/config"
 	"downloader/internal/dependencies"
 	"downloader/internal/downloader"
@@ -14,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
+	"github.com/gosuri/uiprogress"
 )
 
 func main() {
@@ -84,17 +84,37 @@ func main() {
 		fmt.Println()
 	}
 
+	// Start the progress rendering system
+	uiprogress.Start()
+
 	// start downloading videos concurrently
 	wg := sync.WaitGroup{}
 	wg.Add(len(downloadRequests))
 
 	for _, downloadRequest := range downloadRequests {
 		go func() {
-			err := downloader.Download(downloadRequest)
 
-			if err != nil {
-				fmt.Printf("%s failed to download video(%s): %v\n", color.RedString("Error:"), downloadRequest.Url, err)
+			// Prepare the progress label based on the download request type
+			progressLabel := "\n"
+
+			if downloadRequest.IsClip {
+				progressLabel += utils.FormatClipDownloadMessage(downloadRequest.ClipTimeRange) + fmt.Sprintf("\nFrom URL: %s", downloadRequest.Url)
+			} else {
+				progressLabel += fmt.Sprintf("Downloading full video: %s", downloadRequest.Url)
 			}
+
+			// Show the progress bar
+			downloadProgressBar := ui.ShowDownloadProgress(progressLabel)
+
+			// Start the download and get the progress channel
+			progressChan := downloader.Download(downloadRequest)
+
+			// Update the progress bar with the progress from the progress channel
+			for progress := range progressChan {
+				downloadProgressBar.Set(progress)
+			}
+
+			// Signal that the download process is complete
 			wg.Done()
 		}()
 	}
@@ -102,7 +122,28 @@ func main() {
 	// ensure all goroutines complete
 	wg.Wait()
 
-	// Wait for user input before exiting
-	fmt.Print("\nAll downloads completed. Press Enter to exit...\n")
-	bufio.NewReader(os.Stdin).ReadBytes('\n')
+	// Stop the progress rendering system
+	uiprogress.Stop()
+
+	// If there are errors, show them and wait for user input before exiting
+	if downloader.ErrorCollector.HasErrors() {
+		errors := downloader.ErrorCollector.GetAll()
+		fmt.Println()
+		fmt.Println("----------------------------------------")
+		fmt.Println(color.RedString("Errors:"))
+		fmt.Println()
+		for _, err := range errors {
+			fmt.Println(err)
+			fmt.Println("-------------------------")
+		}
+		fmt.Println()
+		fmt.Println("All downloads completed.")
+		var input string
+		fmt.Scanln(&input)
+	} else {
+		fmt.Println()
+		fmt.Println("All downloads completed successfully.")
+		var input string
+		fmt.Scanln(&input)
+	}
 }

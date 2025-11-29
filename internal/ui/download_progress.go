@@ -20,9 +20,6 @@ func ShowDownloadProgress(message string) *uiprogress.Bar {
 
 	// Display the message (first line)
 	bar.PrependFunc(func(b *uiprogress.Bar) string {
-		if b.Current() >= 100 {
-			return fmt.Sprintf("%s %s\nProgress:", message, green("✔"))
-		}
 		return fmt.Sprintf("%s\nProgress:", message)
 	})
 
@@ -30,7 +27,7 @@ func ShowDownloadProgress(message string) *uiprogress.Bar {
 	bar.AppendFunc(func(b *uiprogress.Bar) string {
 		percentage := strutil.PadLeft(fmt.Sprintf("%d%%", b.Current()), 4, ' ')
 		if b.Current() >= 100 {
-			return green(percentage)
+			return green(percentage) + " " + green("[DONE]")
 		}
 		return cyan(percentage)
 	})

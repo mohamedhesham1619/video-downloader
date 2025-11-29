@@ -48,7 +48,7 @@ func getLatestYtDlpVersion() (string, error) {
 
 // getCurrentYtDlpVersion gets the existing yt-dlp version tag
 func getCurrentYtDlpVersion() (string, error) {
-	cmd := exec.Command(utils.GetCommand("yt-dlp"), "--version")
+	cmd := exec.Command(utils.GetBinaryPath("yt-dlp"), "--version")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
