@@ -3,16 +3,78 @@ package dependencies
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
+
+// Shared HTTP client for downloads
+var (
+	httpClient     *http.Client
+	httpClientOnce sync.Once
+)
+
+func getHTTPClient() *http.Client {
+	httpClientOnce.Do(func() {
+		transport := &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     0, // Unlimited connections per host
+			IdleConnTimeout:     90 * time.Second,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			DisableCompression: true,
+			DisableKeepAlives:  true,  // Force new connection per request
+			ForceAttemptHTTP2:  false, // Disable HTTP/2, use HTTP/1.1
+		}
+
+		httpClient = &http.Client{
+			Timeout:   0,
+			Transport: transport,
+		}
+	})
+	return httpClient
+}
 
 // downloadFile downloads a file from url and saves it to dest
 func downloadFile(url, dest string) error {
-	resp, err := http.Get(url)
+	client := getHTTPClient()
+
+	// Get file info
+	req, _ := http.NewRequest("HEAD", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	contentLength := resp.ContentLength
+	acceptsRanges := resp.Header.Get("Accept-Ranges") == "bytes"
+
+	// Use parallel download for large files that support ranges
+	if acceptsRanges && contentLength > 1*1024*1024 {
+		return downloadFileParallel(url, dest, contentLength)
+	}
+
+	return downloadFileSingle(url, dest)
+}
+
+// downloadFileSingle downloads using a single connection
+func downloadFileSingle(url, dest string) error {
+	client := getHTTPClient()
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -30,6 +92,103 @@ func downloadFile(url, dest string) error {
 
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+// downloadFileParallel downloads file using parallel connections
+func downloadFileParallel(url, dest string, contentLength int64) error {
+	chunkSize := int64(2 * 1024 * 1024) // 2MB chunks
+	numWorkers := 16
+
+	out, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if err := out.Truncate(contentLength); err != nil {
+		return err
+	}
+
+	type chunk struct {
+		start int64
+		end   int64
+	}
+
+	var chunks []chunk
+	for start := int64(0); start < contentLength; start += chunkSize {
+		end := start + chunkSize - 1
+		if end >= contentLength {
+			end = contentLength - 1
+		}
+		chunks = append(chunks, chunk{start: start, end: end})
+	}
+
+	chunkChan := make(chan chunk, len(chunks))
+	for _, c := range chunks {
+		chunkChan <- c
+	}
+	close(chunkChan)
+
+	errChan := make(chan error, numWorkers)
+
+	for range numWorkers {
+		go func() {
+			for ch := range chunkChan {
+				if err := downloadChunk(url, out, ch.start, ch.end); err != nil {
+					errChan <- err
+					return
+				}
+			}
+			errChan <- nil
+		}()
+	}
+
+	for range numWorkers {
+		if err := <-errChan; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// downloadChunk downloads a specific byte range
+func downloadChunk(url string, file *os.File, start, end int64) error {
+	client := getHTTPClient()
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("chunk download failed: status %d", resp.StatusCode)
+	}
+
+	buf := make([]byte, 256*1024)
+	offset := start
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := file.WriteAt(buf[:n], offset); writeErr != nil {
+				return writeErr
+			}
+			offset += int64(n)
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
+
+	return nil
 }
 
 // downloadYtDlp downloads the latest yt-dlp for the current OS
