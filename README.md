@@ -1,166 +1,134 @@
-# Videos Downloader
+# Video Downloader
 
-A command-line tool written in Go for downloading full videos and clips from various online platforms using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://github.com/FFmpeg/FFmpeg).
-
-> **💡 Looking for a web interface for clips?** Check out the [Web Version](https://github.com/mohamedhesham1619/clipper) of this tool which includes additional features like quality selection and real-time progress updates for clip creation.
+User-friendly tool to download full videos or clips from [1000+ websites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 ## Table of Contents
-- [Features](#features)
-- [Clip Processing Modes](#clip-processing-modes)
-  - [Normal Mode (Default)](#normal-mode-default)
-  - [Fast Mode (Using `-fast` Flag)](#fast-mode-using--fast-flag)
-- [Installation](#installation)
-  - [Option 1 - Download Latest Release (Windows only)](#option-1---download-latest-release-windows-only)
-  - [Option 2 - Build from Source](#option-2---build-from-source)
-- [Usage](#usage)
+
+- [How to Use](#how-to-use)
+- [What Happens When You Run](#what-happens-when-you-run)
+- [How to Format URLs](#how-to-format-urls)
+- [Custom Download Location](#custom-download-location)
+- [Clip Modes](#clip-modes)
 - [Demo](#demo)
 
-## Features
-- Download full videos or clips with specified timestamps
+## How to Use
 
-- Process downloads concurrently for faster performance
+### Step 1: Download
+Go to [Releases](https://github.com/mohamedhesham1619/video-downloader/releases) and download the right version for your system
 
-- Supports downloading from [1000+ sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+Supported systems:
 
+- Windows (fully tested) ✓
+- macOS (untested)
+- Linux (untested)
 
-## Clip Processing Modes
-### When downloading clips, there are two modes available:
+> Note: Only the Windows version has been thoroughly tested. macOS and Linux versions should work but haven't been verified yet. If you encounter issues, please report them.
 
-### Normal Mode (Default)
+### Step 2: Extract
+Unzip the downloaded file to a location of your choice.
 
-- **Re-encodes** the video using GPU or CPU encoding
-- **More precise** clip cutting
-- **Slower processing** due to re-encoding time
+### Step 3: Add Video Links
+Open `urls.txt` in a text editor and add your video URLs (one per line), then save the file. Check [How to Format URLs](#how-to-format-urls) for examples.
 
+### Step 4: Run
+- **Windows:** Double-click `downloader.exe`
+- **macOS/Linux:** Open Terminal in the app folder and run `./downloader`
 
-The tool automatically:
-- **Detects** available GPU
-- **Uses appropriate encoder**:
-  - **NVIDIA**: `h264_nvenc`
-  - **AMD**: `h264_amf`
-  - **Intel**: `h264_qsv`
-- **Tests** GPU encoder compatibility
-- **Falls back** to CPU encoder (`libx264`) if no GPU detected or the GPU encoder is not working
+### Step 5: Done!
+Your videos will be saved in the `Downloads` folder inside the app folder.
 
+## What Happens When You Run
 
-> **Note:** If the tool shows a message that it could not use the GPU encoder and is falling back to CPU encoding, consider updating your GPU drivers. GPU encoding (when available) is much faster than CPU encoding for re-encoding clips.
+The app automatically manages its dependencies:
 
-### Fast Mode (Using `-fast` Flag)
+**First time you run:**
+- Checks for required tools (yt-dlp, ffmpeg, deno) in the `bin` folder inside the app folder
+- Downloads any missing tools
+- This may take a moment depending on your internet speed
 
-- **Copies** the video stream directly without re-encoding
-- **Faster processing**
-- **May not cut clips as precisely** as normal mode:
-  - Clips can start a few seconds before the specified start time
-  - Clips can have frozen frames at the beginning
+**Every time after:**
+- Checks if there's a newer version of yt-dlp available
+- Downloads the update if found
 
+You don't need to install anything manually - the app handles everything for you.
 
-## Installation
+> Note: If you already have these tools, you can create a `bin` folder inside the app folder and place them there to save download time.
 
-### Option 1 - Download Latest Release (Windows only)
-1. Download the [latest release](https://drive.google.com/file/d/1dI1I89GYf4dvj3VCJVFFKWEJ3cBQzswh/view?usp=drive_link).
-   - The release contains the following files:
-     - `downloader.exe`: Main executable
-     - `ffmpeg.exe`: FFmpeg binary for clip processing
-     - `yt-dlp.exe`: yt-dlp binary for downloading videos
-     - `urls.txt`: File to add your video URLs for download
-2. Extract the ZIP file.
-3. Add video URLs to `urls.txt`.
-4. Run `downloader.exe` from the command line or double-click it.
+## How to Format URLs
 
-### Option 2 - Build from Source
+Each line must start with the URL, optionally followed by quality or time range.
 
-#### Prerequisites
-- [Go](https://go.dev/doc/install) 1.22 or later
-- [Git](https://git-scm.com/downloads)
-- `ffmpeg` and `yt-dlp` (see below for installation per OS)
+**Behavior:**
+- No time range → downloads the full video
+- With time range → downloads only that part
+- No quality → downloads best available quality
+- With quality → uses the specified quality
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/mohamedhesham1619/videos-downloader
-cd videos-downloader 
+**Formats:**
+- Quality: Any number with "p" (e.g., `360p`, `720p`, `1080p`, `2160p`)
+- Time range: `HH:MM:SS-HH:MM:SS`
+
+**Examples:**
 ```
-
-### 2. Install Dependencies
-#### Windows
-1. Download [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/releases) and place it in the `release` folder.
-
-2. Download [ffmpeg](https://github.com/BtbN/FFmpeg-Builds/releases) 
-    - Download `ffmpeg-master-latest-win64-gpl.zip` 
-    - Extract it and copy `ffmpeg.exe` from the `bin` folder to the `release` folder.
-
-#### Linux
-
-``` bash
-# Ubuntu/Debian
-sudo apt update && sudo apt install -y ffmpeg yt-dlp
-
-# Arch Linux
-sudo pacman -S ffmpeg yt-dlp
-
-# Fedora
-sudo dnf install ffmpeg yt-dlp
-```
-
-#### macOS
-```bash
-# Using Homebrew
-brew install ffmpeg yt-dlp
-```
-
-### 3. Build the Project
-```bash
-# Windows
-go build -o release/downloader.exe cmd/main.go
-
-# Linux/macOS
-go build -o release/downloader cmd/main.go
-```
-## Usage
-
-### Setting Up URLs
-
-Create a file named `urls.txt` in the same directory as the executable (e.g., in the release folder if running from there).
-
-Add video URLs you want to download, one per line. You can also specify clips by adding timestamps.
-
-**Supported formats:**
-
-- Full video:  
-  ```
-  https://youtube.com/watch?v=example
-  ```
-- Clip from a video (format: `<url> <start_time>-<end_time>`, timestamps in `HH:MM:SS-HH:MM:SS`):  
-
-  ```
-  https://youtube.com/watch?v=example 00:01:30-00:02:45
-  ```
-
-
-### Example `urls.txt` File
-```plaintext
+# Downloads full video in best available quality
 https://youtube.com/watch?v=example
-https://facebook.com/video/example 00:05:00-00:10:00
-https://twitter.com/video/example 00:00:30-00:01:00
-https://tiktok.com/@user/video/example 
+
+# Downloads full video in 720p quality
+https://youtube.com/watch?v=example 720p
+
+# Downloads only the clip from 1:30 to 2:45 in best available quality
+https://youtube.com/watch?v=example 00:01:30-00:02:45
+
+# Downloads clip from 1:30 to 2:45 in 720p quality
+https://youtube.com/watch?v=example 720p 00:01:30-00:02:45
+
+# Downloads clip from 1:30 to 2:45 in 1080p quality (the order after the URL doesn't matter)
+https://youtube.com/watch?v=example 00:01:30-00:02:45 1080p
 ```
 
-### Running the Program
-```powershell
-# Basic usage (downloads to ./downloads)
-./downloader.exe
+## Custom Download Location
 
-# Custom download path
-./downloader.exe -path "D:\Videos"
+By default, videos are saved to the `Downloads` folder inside the app folder. To save to a different location:
 
-# Fast mode (no re-encoding)
-./downloader.exe -fast
+1. Open Terminal/Command Prompt in the app folder
+   - **Windows:** Shift + Right-click in the folder → "Open PowerShell window here" or "Open Command Prompt here"
+   - **macOS/Linux:** Right-click in the folder → "Open Terminal here"
+
+2. Run the app with the `-path` flag and the full path to your desired location:
+
+**Windows:**
 ```
+./downloader.exe -path "D:\My Videos"
+```
+
+**macOS/Linux:**
+```
+./downloader -path "/home/user/Videos"
+```
+
+## Clip Modes
+
+When downloading clips, you'll be asked to choose a mode:
+
+**Fast Mode (Recommended)**
+- Simply copies the video without re-processing it
+- Much faster, especially for long clips
+- May start a few seconds early or have a brief freeze at the beginning
+- Best for most use cases
+
+**Accurate Mode**
+- Re-processes the video to cut at exact times
+- Cuts clips very precisely at the exact times you specify
+- Speed depends on your computer's hardware
+
+
+> Tip: Always start with Fast mode and only switch to Accurate mode if you notice timing issues or frozen frames in your clips.
+
+The app automatically tries to use your graphics card (GPU) first for faster processing in Accurate mode, and falls back to your CPU if the GPU isn't available. If you see a message about "falling back to CPU encoder," try updating your graphics card drivers for better performance.
+
 
 ## Demo
 
-
-
-https://github.com/user-attachments/assets/1c15d038-6fee-4f54-92e6-8cd30dc8bb3b
 
 
 
