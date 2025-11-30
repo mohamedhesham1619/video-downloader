@@ -1,9 +1,10 @@
 # Video Downloader
 
-User-friendly tool to download full videos or clips from [1000+ websites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+User-friendly tool for downloading full videos or clips from [1000+ websites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 ## Table of Contents
 
+- [Features](#features)
 - [How to Use](#how-to-use)
 - [What Happens When You Run](#what-happens-when-you-run)
 - [How to Format URLs](#how-to-format-urls)
@@ -11,6 +12,19 @@ User-friendly tool to download full videos or clips from [1000+ websites](https:
 - [Clip Modes](#clip-modes)
 - [Demo](#demo)
 
+
+## Features
+
+- **Download from 1000+ websites** - YouTube, Facebook, Twitter, TikTok, and [many more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+- **Full videos or clips** - Download entire videos or just specific time ranges
+- **Quality control** - Choose your preferred video quality (360p, 720p, 1080p, etc.)
+- **Format selection** - Option to download only MP4 format for maximum compatibility
+
+- **Batch downloads** - Process multiple URLs at once from a simple text file
+- **Zero manual setup** - Automatically downloads and manages all required dependencies (yt-dlp, ffmpeg, deno)
+- **Auto-updates** - Keeps yt-dlp up to date for best compatibility
+- **Two clip modes** - Fast mode for quick cuts or Accurate mode for precise timing
+  
 ## How to Use
 
 ### Step 1: Download
@@ -131,5 +145,9 @@ The app automatically tries to use your graphics card (GPU) first for faster pro
 
 
 
+
+
+
+https://github.com/user-attachments/assets/198ec8a7-56d3-44f1-87ef-dec3b60e2c2c
 
 
