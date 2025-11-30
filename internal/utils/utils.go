@@ -148,16 +148,16 @@ func FormatDuration(seconds int) string {
 	return fmt.Sprintf("%ds", s)
 }
 
-// Formats a user-friendly message for clip downloads
-func FormatClipDownloadMessage(timeRange string) string {
+// Formats a user-friendly duration text for clip downloads
+func FormatClipDurationText(timeRange string) string {
 
 	durationSecs, _ := CalculateClipDurationInSeconds(timeRange)
 	startTime, endTime := strings.Split(timeRange, "-")[0], strings.Split(timeRange, "-")[1]
 
-	return fmt.Sprintf("Downloading clip: %s duration (from %s to %s)",
-		color.CyanString(FormatDuration(durationSecs)),
-		color.YellowString(startTime),
-		color.YellowString(endTime))
+	return fmt.Sprintf("%s (from %s to %s)",
+		color.YellowString(FormatDuration(durationSecs)),
+		startTime,
+		endTime)
 }
 
 // IsYouTubeURL returns true if the URL is a YouTube link.

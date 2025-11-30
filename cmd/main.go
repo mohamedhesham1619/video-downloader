@@ -47,6 +47,10 @@ func main() {
 		}
 	}
 
+	// Show setup header
+	fmt.Println("Quick setup before we start...")
+	fmt.Println()
+
 	// prompt the user to select the preferred video format
 	preferredFormat, err := ui.PromptVideoFormat()
 	if err != nil {
@@ -57,6 +61,7 @@ func main() {
 	shouldReEncode := false
 
 	if shouldPromptClipDownloadMethods {
+		fmt.Println()
 		shouldReEncode, err = ui.PromptClipDownloadMethod()
 		if err != nil {
 			log.Fatal("Error prompting clip download method", err)
@@ -71,6 +76,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("Starting downloads...")
 	fmt.Println("----------------------------------------")
+	fmt.Println("Please keep the app open until you see “All downloads completed”. This ensures every download finishes correctly.")
 	fmt.Println()
 
 	// Print the encoder that will be used for clips
@@ -94,13 +100,21 @@ func main() {
 	for _, downloadRequest := range downloadRequests {
 		go func() {
 
+			quality := ""
+			if downloadRequest.Quality != "" {
+				quality = fmt.Sprintf("(%sp)", downloadRequest.Quality)
+			} else {
+				quality = "(best quality)"
+			}
+
 			// Prepare the progress label based on the download request type
 			progressLabel := "\n"
 
 			if downloadRequest.IsClip {
-				progressLabel += utils.FormatClipDownloadMessage(downloadRequest.ClipTimeRange) + fmt.Sprintf("\nFrom URL: %s", downloadRequest.Url)
+				durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
+				progressLabel += fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, downloadRequest.Url)
 			} else {
-				progressLabel += fmt.Sprintf("Downloading full video: %s", downloadRequest.Url)
+				progressLabel += fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), downloadRequest.Url)
 			}
 
 			// Show the progress bar

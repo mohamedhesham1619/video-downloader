@@ -11,7 +11,7 @@ import (
 func PromptVideoFormat() (models.VideoFormat, error) {
 	var selectedOption string
 	prompt := &survey.Select{
-		Message: "Preferred video format:",
+		Message: "Choose your preferred video format:",
 		Options: []string{
 			"Any format",
 			"Prefer MP4 when available",
