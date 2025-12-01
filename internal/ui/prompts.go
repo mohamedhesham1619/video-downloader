@@ -38,7 +38,7 @@ func PromptVideoFormat() (models.VideoFormat, error) {
 func PromptClipDownloadMethod() (shouldReEncode bool, err error) {
 	var selectedOption string
 	prompt := &survey.Select{
-		Message: "How would you like to download clips?",
+		Message: "How would you like to download video clips?",
 		Options: []string{
 			"Fast (recommended) - Clips may start a few seconds early or have frozen frames at the start",
 			"Accurate - Switch to this if Fast didn't work properly (much slower)",

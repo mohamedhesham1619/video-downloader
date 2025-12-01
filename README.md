@@ -40,8 +40,14 @@
 
 - **Download from 1000+ websites** - YouTube, Facebook, Twitter, TikTok, and [many more](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
 - **Full videos or clips** - Download entire videos or just specific time ranges
+
 - **Quality control** - Choose your preferred video quality (360p, 720p, 1080p, etc.)
+
 - **Format selection** - Option to download only MP4 format for maximum compatibility
+
+- **Audio extraction available** - Optionally download just the audio instead of video (full or clips)
+
+
 
 - **Batch downloads** - Process multiple URLs at once from a simple text file
 - **Zero manual setup** - Automatically downloads and manages all required dependencies (yt-dlp, ffmpeg, deno)
@@ -93,19 +99,23 @@ You don't need to install anything manually - the app handles everything for you
 
 ## How to Format URLs
 
-Each line must start with the URL, optionally followed by quality or time range.
-
-**Behavior:**
-- No time range → downloads the full video
-- With time range → downloads only that part
-- No quality → downloads best available quality
-- With quality → uses the specified quality
+Each line must start with the URL, optionally followed by quality, time range, or the `audio` keyword.
 
 **Formats:**
 - Quality: Any number with "p" (e.g., `360p`, `720p`, `1080p`, `2160p`)
 - Time range: `HH:MM:SS-HH:MM:SS`
+- Audio: `audio` keyword
 
-**Examples:**
+**Behavior:**
+- With `audio` keyword → downloads audio only
+- No `audio` keyword → downloads video
+- No time range → downloads the full video/audio
+- With time range → downloads only that part of the video/audio
+- No quality → downloads best available video quality
+- With quality → uses the specified video quality
+
+
+**Video Examples:**
 ```
 # Downloads full video in best available quality
 https://youtube.com/watch?v=example
@@ -121,6 +131,24 @@ https://youtube.com/watch?v=example 720p 00:01:30-00:02:45
 
 # Downloads clip from 1:30 to 2:45 in 1080p quality (the order after the URL doesn't matter)
 https://youtube.com/watch?v=example 00:01:30-00:02:45 1080p
+```
+
+**Audio Examples:**
+```
+# Downloads full audio
+https://youtube.com/watch?v=example audio
+
+# Downloads audio clip from 1:30 to 2:45
+https://youtube.com/watch?v=example audio 00:01:30-00:02:45
+```
+
+**Mixed Downloads:**
+```
+# You can mix video and audio downloads in the same urls.txt file
+https://youtube.com/watch?v=video1 1080p
+https://youtube.com/watch?v=video2 audio
+https://youtube.com/watch?v=video3 audio 00:00:30-00:02:00
+https://youtube.com/watch?v=video4 720p 00:01:00-00:05:00
 ```
 
 ## Custom Download Location

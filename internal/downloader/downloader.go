@@ -90,15 +90,24 @@ func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 // prepare the command to download the whole video
 func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
-	// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
-	// - %(title)s: video title from metadata
-	// - .200s: limits title to 150 characters to avoid filename length issues
-	// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
-	// - %(ext)s: file extension based on selected format
-	downloadPath := filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
+	var downloadPath string
+	var format string
 
-	isYoutubeUrl := utils.IsYouTubeURL(req.Url)
-	format := getYtdlpFormat(isYoutubeUrl, req.Quality, d.config.VideoFormat)
+	if req.IsAudioOnly {
+		// yt-dlp output template for audio: "%(title).150s-audio.%(ext)s"
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-audio.%(ext)s")
+		format = "ba"
+	} else {
+		// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
+		// - %(title)s: video title from metadata
+		// - .150s: limits title to 150 characters to avoid filename length issues
+		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
+		// - %(ext)s: file extension based on selected format
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
+
+		isYoutubeUrl := utils.IsYouTubeURL(req.Url)
+		format = getYtdlpFormat(isYoutubeUrl, req.Quality, d.config.VideoFormat)
+	}
 
 	args := []string{
 		"-f", format,
@@ -117,7 +126,7 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 		"-o", downloadPath,
 	}
 
-	if d.config.VideoFormat == models.FormatForceMP4 {
+	if !req.IsAudioOnly && d.config.VideoFormat == models.FormatForceMP4 {
 		args = append(args, "--remux-video", "mp4")
 	}
 
@@ -129,17 +138,25 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 // prepare the command to download a clip of the video
 func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
-	// Prepare the download path with the video title
-	// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
-	// - %(title)s: video title from metadata
-	// - .200s: limits title to 150 characters to avoid filename length issues
-	// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
-	// - %(ext)s: file extension based on selected format
-	downloadPath := filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
+	var downloadPath string
+	var format string
 
-	isYouTubeURL := utils.IsYouTubeURL(req.Url)
+	if req.IsAudioOnly {
+		// yt-dlp output template for audio: "%(title).150s-audio.%(ext)s"
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-audio.%(ext)s")
+		format = "ba"
+	} else {
+		// Prepare the download path with the video title
+		// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
+		// - %(title)s: video title from metadata
+		// - .150s: limits title to 150 characters to avoid filename length issues
+		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
+		// - %(ext)s: file extension based on selected format
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
 
-	format := getYtdlpFormat(isYouTubeURL, req.Quality, d.config.VideoFormat)
+		isYouTubeURL := utils.IsYouTubeURL(req.Url)
+		format = getYtdlpFormat(isYouTubeURL, req.Quality, d.config.VideoFormat)
+	}
 
 	// Prepare the command arguments
 	args := []string{
@@ -160,17 +177,20 @@ func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.
 		"-o", downloadPath,
 	}
 
-	// If the user choose to re-encode clips, add --postprocessor-args to force re-encoding with the selected encoder
-	if d.config.ShouldReEncode {
-		args = append(args, "--postprocessor-args", fmt.Sprintf("ffmpeg=-c:v %s", d.config.Encoder))
+	// Audio clips don't need re-encoding or remuxing
+	if !req.IsAudioOnly {
+		// If the user choose to re-encode clips, add --postprocessor-args to force re-encoding with the selected encoder
+		if d.config.ShouldReEncode {
+			args = append(args, "--postprocessor-args", fmt.Sprintf("ffmpeg=-c:v %s", d.config.Encoder))
 
-		if d.config.VideoFormat == models.FormatForceMP4 {
-			args = append(args, "--merge-output-format", "mp4")
-		}
-	} else {
-		// Only remux if not re-encoding
-		if d.config.VideoFormat == models.FormatForceMP4 {
-			args = append(args, "--remux-video", "mp4")
+			if d.config.VideoFormat == models.FormatForceMP4 {
+				args = append(args, "--merge-output-format", "mp4")
+			}
+		} else {
+			// Only remux if not re-encoding
+			if d.config.VideoFormat == models.FormatForceMP4 {
+				args = append(args, "--remux-video", "mp4")
+			}
 		}
 	}
 

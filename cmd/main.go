@@ -36,35 +36,44 @@ func main() {
 		log.Fatal("Error reading urls from urls.txt file \n", err)
 	}
 
-	// parse urls into download requests and check if there are clip requests
+	// parse urls into download requests and check if there are video clip requests
 	downloadRequests := make([]models.DownloadRequest, len(urls))
-	shouldPromptClipDownloadMethods := false
+	hasVideoRequests := false
+	hasVideoClipRequests := false
 
 	for i, url := range urls {
 		downloadRequests[i] = utils.ParseDownloadRequest(url)
-		if downloadRequests[i].IsClip {
-			shouldPromptClipDownloadMethods = true
+		if !downloadRequests[i].IsAudioOnly {
+			hasVideoRequests = true
+			if downloadRequests[i].IsClip {
+				hasVideoClipRequests = true
+			}
 		}
 	}
 
-	// Show setup header
-	fmt.Println("Quick setup before we start...")
-	fmt.Println()
-
-	// prompt the user to select the preferred video format
-	preferredFormat, err := ui.PromptVideoFormat()
-	if err != nil {
-		log.Fatal("Error prompting video format", err)
-	}
-
-	// if there is any clip request, prompt the user to select the clip download method
+	// Only show setup prompts if there are video requests
+	preferredFormat := models.FormatAny
 	shouldReEncode := false
 
-	if shouldPromptClipDownloadMethods {
+	if hasVideoRequests {
+		// Show setup header
+		fmt.Println("Quick setup before we start...")
 		fmt.Println()
-		shouldReEncode, err = ui.PromptClipDownloadMethod()
+
+		// prompt the user to select the preferred video format
+		var err error
+		preferredFormat, err = ui.PromptVideoFormat()
 		if err != nil {
-			log.Fatal("Error prompting clip download method", err)
+			log.Fatal("Error prompting video format", err)
+		}
+
+		// if there is any video clip request, prompt the user to select the clip download method
+		if hasVideoClipRequests {
+			fmt.Println()
+			shouldReEncode, err = ui.PromptClipDownloadMethod()
+			if err != nil {
+				log.Fatal("Error prompting clip download method", err)
+			}
 		}
 	}
 
@@ -100,21 +109,32 @@ func main() {
 	for _, downloadRequest := range downloadRequests {
 		go func() {
 
-			quality := ""
-			if downloadRequest.Quality != "" {
-				quality = fmt.Sprintf("(%sp)", downloadRequest.Quality)
-			} else {
-				quality = "(best quality)"
-			}
-
 			// Prepare the progress label based on the download request type
 			progressLabel := "\n"
 
-			if downloadRequest.IsClip {
-				durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
-				progressLabel += fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, downloadRequest.Url)
+			if downloadRequest.IsAudioOnly {
+				// Audio download
+				if downloadRequest.IsClip {
+					durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
+					progressLabel += fmt.Sprintf("Downloading audio clip %s\nDuration: %s\nURL: %s", color.CyanString("(best quality)"), durationText, downloadRequest.Url)
+				} else {
+					progressLabel += fmt.Sprintf("Downloading full audio %s\nURL: %s", color.CyanString("(best quality)"), downloadRequest.Url)
+				}
 			} else {
-				progressLabel += fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), downloadRequest.Url)
+				// Video download
+				quality := ""
+				if downloadRequest.Quality != "" {
+					quality = fmt.Sprintf("(%sp)", downloadRequest.Quality)
+				} else {
+					quality = "(best quality)"
+				}
+
+				if downloadRequest.IsClip {
+					durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
+					progressLabel += fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, downloadRequest.Url)
+				} else {
+					progressLabel += fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), downloadRequest.Url)
+				}
 			}
 
 			// Show the progress bar

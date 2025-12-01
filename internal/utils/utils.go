@@ -44,12 +44,15 @@ func ReadLinesFromFile(fileName string) ([]string, error) {
 // - the first part is the url
 // - for clip download, the line must contain a time range in the format HH:MM:SS-HH:MM:SS
 // - for both clip and full video download, the quality can be specified using any number with "p" suffix (e.g., 1440p,1080p, 720p)
+// - for audio-only download, the line must contain the keyword "audio"
 //
 // Examples:
 // - https://www.video.com/watch?v=dQw4w9WgXcQ    (download the full video in best quality)
 // - https://www.video.com/watch?v=dQw4w9WgXcQ 1080p    (download the full video in 1080p quality)
 // - https://www.video.com/watch?v=dQw4w9WgXcQ 00:00:00-00:01:00    (download a clip from 00:00:00 to 00:01:00)
 // - https://www.video.com/watch?v=dQw4w9WgXcQ 1080p 00:00:00-00:01:00    (download a clip from 00:00:00 to 00:01:00 in 1080p quality)
+// - https://www.video.com/watch?v=dQw4w9WgXcQ audio    (download the full audio in best quality)
+// - https://www.video.com/watch?v=dQw4w9WgXcQ audio 00:00:00-00:01:00    (download an audio clip from 00:00:00 to 00:01:00)
 func ParseDownloadRequest(line string) models.DownloadRequest {
 
 	// split the line by spaces
@@ -60,16 +63,23 @@ func ParseDownloadRequest(line string) models.DownloadRequest {
 		Url: parts[0],
 	}
 
-	// if the line contains a time range or quality, add it to the request
+	// if the line contains a time range, quality, or audio keyword, add it to the request
 	if len(parts) > 1 {
 		for i := 1; i < len(parts); i++ {
-			if strings.Contains(parts[i], "-") {
+			if strings.ToLower(parts[i]) == "audio" {
+				req.IsAudioOnly = true
+			} else if strings.Contains(parts[i], "-") {
 				req.IsClip = true
 				req.ClipTimeRange = parts[i]
 			} else if strings.HasSuffix(parts[i], "p") {
 				req.Quality = strings.TrimSuffix(parts[i], "p")
 			}
 		}
+	}
+
+	// If audio is requested, ignore quality setting
+	if req.IsAudioOnly {
+		req.Quality = ""
 	}
 
 	return req
