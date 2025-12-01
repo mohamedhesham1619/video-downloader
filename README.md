@@ -1,6 +1,29 @@
-# Video Downloader
+<div align="center">
+  <h1>🎬 Video Downloader</h1>
+  
+  <p>User-friendly tool for downloading full videos or clips from multiple online platforms</p>
+  <br>
+  
+<p>
+  <a href="https://github.com/yt-dlp/yt-dlp">
+    <img src="https://img.shields.io/badge/Powered_by-yt--dlp-FF4C4C?style=flat-square" alt="Powered by yt-dlp">
+  </a>
+  <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">
+<img src="https://img.shields.io/badge/1000+-Supported_Sites-8E44AD?style=flat-square" alt="Supported Sites">
+  </a>
+</p>
 
-User-friendly tool for downloading full videos or clips from [1000+ websites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+<p>
+  <a href="https://github.com/mohamedhesham1619/video-downloader/releases/latest">
+    <img src="https://img.shields.io/github/v/release/mohamedhesham1619/video-downloader?style=flat-square&label=Download%20Latest&color-FDCB6E" alt="Download Latest">
+  </a>
+</p>
+
+
+
+</div>
+
+<br>
 
 ## Table of Contents
 
@@ -22,7 +45,7 @@ User-friendly tool for downloading full videos or clips from [1000+ websites](ht
 
 - **Batch downloads** - Process multiple URLs at once from a simple text file
 - **Zero manual setup** - Automatically downloads and manages all required dependencies (yt-dlp, ffmpeg, deno)
-- **Auto-updates** - Keeps yt-dlp up to date for best compatibility
+- **Auto-updates** - Keeps yt-dlp up to date for seamless downloads
 - **Two clip modes** - Fast mode for quick cuts or Accurate mode for precise timing
   
 ## How to Use
