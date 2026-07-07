@@ -94,16 +94,16 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 	var format string
 
 	if req.IsAudioOnly {
-		// yt-dlp output template for audio: "%(title).150s-audio.%(ext)s"
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-audio.%(ext)s")
+		// yt-dlp output template for audio: "%(title).50s-audio.%(ext)s"
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-audio.%(ext)s")
 		format = "ba"
 	} else {
-		// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
+		// yt-dlp output template: "%(title).50s-%(height)sp.%(ext)s"
 		// - %(title)s: video title from metadata
-		// - .150s: limits title to 150 characters to avoid filename length issues
+		// - .50s: limits title to 50 characters to avoid byte-length issues with multi-byte chars (Arabic/Emojis)
 		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
 		// - %(ext)s: file extension based on selected format
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-%(height)sp.%(ext)s")
 
 		isYoutubeUrl := utils.IsYouTubeURL(req.Url)
 		format = getYtdlpFormat(isYoutubeUrl, req.Quality, d.config.VideoFormat)
@@ -142,17 +142,17 @@ func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.
 	var format string
 
 	if req.IsAudioOnly {
-		// yt-dlp output template for audio: "%(title).150s-audio.%(ext)s"
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-audio.%(ext)s")
+		// yt-dlp output template for audio: "%(title).50s-audio.%(ext)s"
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-audio.%(ext)s")
 		format = "ba"
 	} else {
 		// Prepare the download path with the video title
-		// yt-dlp output template: "%(title).150s-%(height)sp.%(ext)s"
+		// yt-dlp output template: "%(title).50s-%(height)sp.%(ext)s"
 		// - %(title)s: video title from metadata
-		// - .150s: limits title to 150 characters to avoid filename length issues
+		// - .50s: limits title to 50 characters to avoid byte-length issues with multi-byte chars
 		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
 		// - %(ext)s: file extension based on selected format
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).150s-%(height)sp.%(ext)s")
+		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-%(height)sp.%(ext)s")
 
 		isYouTubeURL := utils.IsYouTubeURL(req.Url)
 		format = getYtdlpFormat(isYouTubeURL, req.Quality, d.config.VideoFormat)
