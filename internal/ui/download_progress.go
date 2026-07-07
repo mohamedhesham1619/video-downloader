@@ -9,8 +9,6 @@ import (
 )
 
 // ShowDownloadProgress adds a single-line progress bar to the given progress instance.
-// Labels should be printed to stdout before calling this, so uiprogress re-renders
-// don't overwrite them.
 func ShowDownloadProgress(progress *uiprogress.Progress) *uiprogress.Bar {
 	green := color.New(color.FgGreen).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
@@ -32,4 +30,14 @@ func ShowDownloadProgress(progress *uiprogress.Progress) *uiprogress.Bar {
 	})
 
 	return bar
+}
+
+// AddLabelBar creates a fake progress bar to safely display text above actual progress bars.
+func AddLabelBar(progress *uiprogress.Progress, text string) {
+	bar := progress.AddBar(1)
+	bar.Width = 1 // Must be > 0 to prevent index out of range panic in uiprogress
+	bar.AppendFunc(func(b *uiprogress.Bar) string {
+		// \r moves to start to overwrite the dummy bar, \033[K clears the rest of the line
+		return fmt.Sprintf("\r%s\033[K", text)
+	})
 }

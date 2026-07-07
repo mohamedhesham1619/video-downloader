@@ -170,14 +170,21 @@ func main() {
 	}
 }
 
-// buildProgressLabel returns a display label for a download request.
-func buildProgressLabel(req models.DownloadRequest) string {
+// buildProgressLabels returns the display lines for a download request.
+func buildProgressLabels(req models.DownloadRequest) []string {
+	var lines []string
+
 	if req.IsAudioOnly {
 		if req.IsClip {
 			durationText := utils.FormatClipDurationText(req.ClipTimeRange)
-			return fmt.Sprintf("Downloading audio clip %s\nDuration: %s\nURL: %s", color.CyanString("(best quality)"), durationText, req.Url)
+			lines = append(lines, fmt.Sprintf("Downloading audio clip %s", color.CyanString("(best quality)")))
+			lines = append(lines, fmt.Sprintf("Duration: %s", durationText))
+			lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
+		} else {
+			lines = append(lines, fmt.Sprintf("Downloading full audio %s", color.CyanString("(best quality)")))
+			lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 		}
-		return fmt.Sprintf("Downloading full audio %s\nURL: %s", color.CyanString("(best quality)"), req.Url)
+		return lines
 	}
 
 	quality := "(best quality)"
@@ -186,25 +193,31 @@ func buildProgressLabel(req models.DownloadRequest) string {
 	}
 	if req.IsClip {
 		durationText := utils.FormatClipDurationText(req.ClipTimeRange)
-		return fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, req.Url)
+		lines = append(lines, fmt.Sprintf("Downloading clip %s", color.CyanString(quality)))
+		lines = append(lines, fmt.Sprintf("Duration: %s", durationText))
+		lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
+	} else {
+		lines = append(lines, fmt.Sprintf("Downloading full video %s", color.CyanString(quality)))
+		lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 	}
-	return fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), req.Url)
+	return lines
 }
 
 // runDownloads runs a set of download requests concurrently and waits for all to finish.
 func runDownloads(dl *downloader.Downloader, requests []models.DownloadRequest) {
 	progress := uiprogress.New()
 
-	// Print all download labels as plain output BEFORE progress starts.
-	// Since bars are single-line, uiprogress re-renders only overwrite the
-	// progress lines themselves — labels above them stay intact.
-	for _, req := range requests {
-		fmt.Println(buildProgressLabel(req))
-	}
-
-	// Register all bars before Start() so the render loop sees them immediately.
 	bars := make([]*uiprogress.Bar, len(requests))
-	for i := range requests {
+	for i, req := range requests {
+		// Add an empty line before each block
+		ui.AddLabelBar(progress, "")
+		
+		// Add each line of the label as a text-only progress bar
+		for _, line := range buildProgressLabels(req) {
+			ui.AddLabelBar(progress, line)
+		}
+		
+		// Add the actual progress bar
 		bars[i] = ui.ShowDownloadProgress(progress)
 	}
 
