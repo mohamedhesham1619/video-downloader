@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func (d *Downloader) streamClipDownloadProgress(stderrPipe, stdoutPipe io.ReadCloser, clipDurationInSeconds int, progressChan chan int) {
+func (d *Downloader) streamClipDownloadProgress(stderrPipe, stdoutPipe io.ReadCloser, clipDurationInSeconds int, progressChan chan int, url string) {
 
 	// Regex to match ffmpeg time output: time=00:00:05.84
 	re := regexp.MustCompile(`time=(\d{2}):(\d{2}):(\d{2})`)
@@ -21,7 +21,7 @@ func (d *Downloader) streamClipDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 		for scanner.Scan() {
 			line := scanner.Text()
 			if errorMatch := errorRegex.FindStringSubmatch(line); errorMatch != nil {
-				d.ErrorCollector.Add(errorMatch[1])
+				d.ErrorCollector.Add(url, errorMatch[1])
 			}
 		}
 	}()
@@ -44,7 +44,7 @@ func (d *Downloader) streamClipDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 
 				// Check for errors in stderr too
 				if errorMatch := errorRegex.FindStringSubmatch(lineStr); errorMatch != nil {
-					d.ErrorCollector.Add(errorMatch[1])
+					d.ErrorCollector.Add(url, errorMatch[1])
 					line = nil
 					continue
 				}
@@ -73,12 +73,12 @@ func (d *Downloader) streamClipDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 	}
 }
 
-func (d *Downloader) streamFullDownloadProgress(stderrPipe, stdoutPipe io.ReadCloser, progressChan chan int) {
+func (d *Downloader) streamFullDownloadProgress(stderrPipe, stdoutPipe io.ReadCloser, progressChan chan int, url string) {
 
 	// Pattern 1: Fragment-based progress (frag N/M)
 	// Example: [download]   6.5% of ~  20.20MiB at  889.24KiB/s ETA Unknown (frag 1/38)
 	fragmentRegex := regexp.MustCompile(`\[download\].*?\(frag\s+(\d+)/(\d+)\)`)
-	
+
 	// Pattern 2: Simple percentage progress
 	// Example: [download]  21.2% of    9.13MiB at    2.35MiB/s ETA 00:03
 	percentRegex := regexp.MustCompile(`\[download\]\s+(\d+(?:\.\d+)?)%`)
@@ -92,7 +92,7 @@ func (d *Downloader) streamFullDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 		for scanner.Scan() {
 			line := scanner.Text()
 			if errorMatch := errorRegex.FindStringSubmatch(line); errorMatch != nil {
-				d.ErrorCollector.Add(errorMatch[1])
+				d.ErrorCollector.Add(url, errorMatch[1])
 			}
 		}
 	}()
@@ -107,7 +107,7 @@ func (d *Downloader) streamFullDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 
 		// Check for errors in stdout too
 		if errorMatches := errorRegex.FindStringSubmatch(line); errorMatches != nil {
-			d.ErrorCollector.Add(errorMatches[1])
+			d.ErrorCollector.Add(url, errorMatches[1])
 			continue
 		}
 
@@ -115,13 +115,13 @@ func (d *Downloader) streamFullDownloadProgress(stderrPipe, stdoutPipe io.ReadCl
 		if matches := fragmentRegex.FindStringSubmatch(line); matches != nil {
 			currentFrag, _ := strconv.Atoi(matches[1])
 			totalFrags, _ := strconv.Atoi(matches[2])
-			
+
 			if currentFrag > maxFragmentSeen {
 				maxFragmentSeen = currentFrag
 			}
-			
+
 			overallProgress := int(float64(maxFragmentSeen) / float64(totalFrags) * 100)
-			
+
 			if overallProgress > lastPercentage {
 				lastPercentage = overallProgress
 				progressChan <- overallProgress

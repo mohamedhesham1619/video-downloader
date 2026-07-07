@@ -6,6 +6,7 @@ import (
 	"downloader/internal/utils"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 )
@@ -22,6 +23,15 @@ func New(cfg *config.Config) *Downloader {
 	}
 }
 
+// NewWithErrorCollector creates a Downloader that shares an existing error collector.
+// Used for retry passes so errors accumulate in the same place.
+func NewWithErrorCollector(cfg *config.Config, ec *errorCollector) *Downloader {
+	return &Downloader{
+		config:         cfg,
+		ErrorCollector: ec,
+	}
+}
+
 func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 
 	var downloadCommand *exec.Cmd
@@ -34,7 +44,7 @@ func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 		clipDurationInSeconds, err := utils.CalculateClipDurationInSeconds(videoRequest.ClipTimeRange)
 
 		if err != nil {
-			d.ErrorCollector.Add(fmt.Sprintf("failed to calculate clip duration: %v", err))
+			d.ErrorCollector.Add(videoRequest.Url, fmt.Sprintf("failed to calculate clip duration: %v", err))
 			close(progressChan)
 			return progressChan
 		}
@@ -46,13 +56,13 @@ func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 		stdoutPipe, stderrPipe, err := getCommandPipes(downloadCommand)
 
 		if err != nil {
-			d.ErrorCollector.Add(err.Error())
+			d.ErrorCollector.Add(videoRequest.Url, err.Error())
 			close(progressChan)
 			return progressChan
 		}
 
 		// Start the progress tracking
-		go d.streamClipDownloadProgress(stderrPipe, stdoutPipe, clipDurationInSeconds, progressChan)
+		go d.streamClipDownloadProgress(stderrPipe, stdoutPipe, clipDurationInSeconds, progressChan, videoRequest.Url)
 	} else {
 		downloadCommand = d.buildFullDownloadCommand(videoRequest)
 
@@ -60,20 +70,20 @@ func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 		stdoutPipe, stderrPipe, err := getCommandPipes(downloadCommand)
 
 		if err != nil {
-			d.ErrorCollector.Add(err.Error())
+			d.ErrorCollector.Add(videoRequest.Url, err.Error())
 			close(progressChan)
 			return progressChan
 		}
 
 		// Start the progress tracking
-		go d.streamFullDownloadProgress(stderrPipe, stdoutPipe, progressChan)
+		go d.streamFullDownloadProgress(stderrPipe, stdoutPipe, progressChan, videoRequest.Url)
 	}
 
 	// Start the download
 	err := downloadCommand.Start()
 
 	if err != nil {
-		d.ErrorCollector.Add(fmt.Sprintf("failed to start download: %v", err))
+		d.ErrorCollector.Add(videoRequest.Url, fmt.Sprintf("failed to start download: %v", err))
 		close(progressChan)
 		return progressChan
 	}
@@ -111,7 +121,6 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 
 	args := []string{
 		"-f", format,
-		"--user-agent", "random",
 		"--no-playlist",
 		"--audio-quality", "0",
 		"--socket-timeout", "20",
@@ -122,8 +131,12 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 		"--buffer-size", "64K",
 		"--newline",
 		"--ffmpeg-location", utils.GetBinaryPath("ffmpeg"),
-		"--js-runtimes", utils.GetBinaryPath("deno"),
+		"--js-runtimes", "deno",
 		"-o", downloadPath,
+	}
+
+	if d.config.CookiesBrowser != "" {
+		args = append(args, "--cookies-from-browser", d.config.CookiesBrowser)
 	}
 
 	if !req.IsAudioOnly && d.config.VideoFormat == models.FormatForceMP4 {
@@ -132,7 +145,13 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 
 	args = append(args, req.Url)
 
-	return exec.Command(utils.GetBinaryPath("yt-dlp"), args...)
+	cmd := exec.Command(utils.GetBinaryPath("yt-dlp"), args...)
+	
+	// Add bin dir to PATH so yt-dlp can find deno
+	binDir := filepath.Dir(utils.GetBinaryPath("deno"))
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return cmd
 }
 
 // prepare the command to download a clip of the video
@@ -162,7 +181,6 @@ func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.
 	args := []string{
 		"-f", format,
 		"--download-sections", fmt.Sprintf("*%s", req.ClipTimeRange),
-		"--user-agent", "random",
 		"--no-playlist",
 		"--audio-quality", "0",
 		"--socket-timeout", "20",
@@ -173,8 +191,12 @@ func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.
 		"--buffer-size", "64K",
 		"--newline",
 		"--ffmpeg-location", utils.GetBinaryPath("ffmpeg"),
-		"--js-runtimes", utils.GetBinaryPath("deno"),
+		"--js-runtimes", "deno",
 		"-o", downloadPath,
+	}
+
+	if d.config.CookiesBrowser != "" {
+		args = append(args, "--cookies-from-browser", d.config.CookiesBrowser)
 	}
 
 	// Audio clips don't need re-encoding or remuxing
@@ -196,7 +218,13 @@ func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.
 
 	args = append(args, req.Url)
 
-	return exec.Command(utils.GetBinaryPath("yt-dlp"), args...)
+	cmd := exec.Command(utils.GetBinaryPath("yt-dlp"), args...)
+	
+	// Add bin dir to PATH so yt-dlp can find deno
+	binDir := filepath.Dir(utils.GetBinaryPath("deno"))
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return cmd
 }
 
 func getCommandPipes(cmd *exec.Cmd) (stdoutPipe, stderrPipe io.ReadCloser, err error) {

@@ -79,95 +79,83 @@ func main() {
 
 	// initialize config and downloader
 	cfg := config.New(shouldReEncode, preferredFormat)
-	downloader := downloader.New(cfg)
+	dl := downloader.New(cfg)
 
 	// Add spacing between prompts and downloads
 	fmt.Println()
 	fmt.Println("Starting downloads...")
 	fmt.Println("----------------------------------------")
-	fmt.Println("Please keep the app open until you see “All downloads completed”. This ensures every download finishes correctly.")
+	fmt.Println("Please keep the app open until you see \u201cAll downloads completed\u201d. This ensures every download finishes correctly.")
 	fmt.Println()
 
 	// Print the encoder that will be used for clips
 	if shouldReEncode {
 		if cfg.Encoder == config.CPUEncoder {
 			color.Cyan("Could not use GPU encoder. Falling back to CPU encoder: %s\n", cfg.Encoder)
-
 		} else {
 			color.Cyan("Using GPU encoder: %s\n", cfg.Encoder)
 		}
 		fmt.Println()
 	}
 
-	// Start the progress rendering system
-	uiprogress.Start()
+	// --- First pass: download everything ---
+	runDownloads(dl, downloadRequests)
 
-	// start downloading videos concurrently
-	wg := sync.WaitGroup{}
-	wg.Add(len(downloadRequests))
+	// --- Cookie retry pass (YouTube sign-in failures only) ---
+	signInErrors := dl.ErrorCollector.GetSignInErrors()
+	if len(signInErrors) > 0 {
+		fmt.Println()
+		fmt.Println("----------------------------------------")
 
-	for _, downloadRequest := range downloadRequests {
-		go func() {
+		retry, err := ui.PromptCookieRetry(len(signInErrors))
+		if err != nil {
+			log.Fatal("Error prompting cookie retry", err)
+		}
 
-			// Prepare the progress label based on the download request type
-			progressLabel := "\n"
+		if retry {
+			browser, err := ui.PromptBrowser()
+			if err != nil {
+				log.Fatal("Error prompting browser selection", err)
+			}
 
-			if downloadRequest.IsAudioOnly {
-				// Audio download
-				if downloadRequest.IsClip {
-					durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
-					progressLabel += fmt.Sprintf("Downloading audio clip %s\nDuration: %s\nURL: %s", color.CyanString("(best quality)"), durationText, downloadRequest.Url)
-				} else {
-					progressLabel += fmt.Sprintf("Downloading full audio %s\nURL: %s", color.CyanString("(best quality)"), downloadRequest.Url)
-				}
-			} else {
-				// Video download
-				quality := ""
-				if downloadRequest.Quality != "" {
-					quality = fmt.Sprintf("(%sp)", downloadRequest.Quality)
-				} else {
-					quality = "(best quality)"
-				}
+			// Remove the sign-in errors so they don't show up in the final report
+			for _, e := range signInErrors {
+				dl.ErrorCollector.RemoveByURL(e.URL)
+			}
 
-				if downloadRequest.IsClip {
-					durationText := utils.FormatClipDurationText(downloadRequest.ClipTimeRange)
-					progressLabel += fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, downloadRequest.Url)
-				} else {
-					progressLabel += fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), downloadRequest.Url)
+			// Build retry requests from the failed URLs
+			retryRequests := make([]models.DownloadRequest, len(signInErrors))
+			for i, e := range signInErrors {
+				for _, req := range downloadRequests {
+					if req.Url == e.URL {
+						retryRequests[i] = req
+						break
+					}
 				}
 			}
 
-			// Show the progress bar
-			downloadProgressBar := ui.ShowDownloadProgress(progressLabel)
+			// Create a new downloader with cookies configured, reusing the same error collector
+			cookieCfg := cfg.WithCookiesBrowser(browser)
+			cookieDl := downloader.NewWithErrorCollector(cookieCfg, dl.ErrorCollector)
 
-			// Start the download and get the progress channel
-			progressChan := downloader.Download(downloadRequest)
+			fmt.Println()
+			fmt.Println("Retrying with browser cookies...")
+			fmt.Println("----------------------------------------")
+			fmt.Println()
 
-			// Update the progress bar with the progress from the progress channel
-			for progress := range progressChan {
-				downloadProgressBar.Set(progress)
-			}
-
-			// Signal that the download process is complete
-			wg.Done()
-		}()
+			runDownloads(cookieDl, retryRequests)
+		}
 	}
 
-	// ensure all goroutines complete
-	wg.Wait()
-
-	// Stop the progress rendering system
-	uiprogress.Stop()
-
-	// If there are errors, show them and wait for user input before exiting
-	if downloader.ErrorCollector.HasErrors() {
-		errors := downloader.ErrorCollector.GetAll()
+	// --- Final result ---
+	if dl.ErrorCollector.HasErrors() {
+		errors := dl.ErrorCollector.GetAll()
 		fmt.Println()
 		fmt.Println("----------------------------------------")
 		fmt.Println(color.RedString("Errors:"))
 		fmt.Println()
 		for _, err := range errors {
-			fmt.Println(err)
+			fmt.Printf("URL: %s\n%s\n", err.URL, err.Message)
 			fmt.Println("-------------------------")
 		}
 		fmt.Println()
@@ -180,4 +168,61 @@ func main() {
 		var input string
 		fmt.Scanln(&input)
 	}
+}
+
+// buildProgressLabel returns a display label for a download request.
+func buildProgressLabel(req models.DownloadRequest) string {
+	if req.IsAudioOnly {
+		if req.IsClip {
+			durationText := utils.FormatClipDurationText(req.ClipTimeRange)
+			return fmt.Sprintf("Downloading audio clip %s\nDuration: %s\nURL: %s", color.CyanString("(best quality)"), durationText, req.Url)
+		}
+		return fmt.Sprintf("Downloading full audio %s\nURL: %s", color.CyanString("(best quality)"), req.Url)
+	}
+
+	quality := "(best quality)"
+	if req.Quality != "" {
+		quality = fmt.Sprintf("(%sp)", req.Quality)
+	}
+	if req.IsClip {
+		durationText := utils.FormatClipDurationText(req.ClipTimeRange)
+		return fmt.Sprintf("Downloading clip %s\nDuration: %s\nURL: %s", color.CyanString(quality), durationText, req.Url)
+	}
+	return fmt.Sprintf("Downloading full video %s\nURL: %s", color.CyanString(quality), req.Url)
+}
+
+// runDownloads runs a set of download requests concurrently and waits for all to finish.
+func runDownloads(dl *downloader.Downloader, requests []models.DownloadRequest) {
+	progress := uiprogress.New()
+
+	// Print all download labels as plain output BEFORE progress starts.
+	// Since bars are single-line, uiprogress re-renders only overwrite the
+	// progress lines themselves — labels above them stay intact.
+	for _, req := range requests {
+		fmt.Println(buildProgressLabel(req))
+	}
+
+	// Register all bars before Start() so the render loop sees them immediately.
+	bars := make([]*uiprogress.Bar, len(requests))
+	for i := range requests {
+		bars[i] = ui.ShowDownloadProgress(progress)
+	}
+
+	progress.Start()
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(requests))
+
+	for i, req := range requests {
+		go func(bar *uiprogress.Bar, req models.DownloadRequest) {
+			progressChan := dl.Download(req)
+			for pct := range progressChan {
+				bar.Set(pct)
+			}
+			wg.Done()
+		}(bars[i], req)
+	}
+
+	wg.Wait()
+	progress.Stop()
 }

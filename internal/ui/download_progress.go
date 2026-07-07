@@ -8,22 +8,21 @@ import (
 	"github.com/gosuri/uiprogress/util/strutil"
 )
 
-func ShowDownloadProgress(message string) *uiprogress.Bar {
-	// Define colors
+// ShowDownloadProgress adds a single-line progress bar to the given progress instance.
+// Labels should be printed to stdout before calling this, so uiprogress re-renders
+// don't overwrite them.
+func ShowDownloadProgress(progress *uiprogress.Progress) *uiprogress.Bar {
 	green := color.New(color.FgGreen).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
 
-	// Create the progress bar
-	bar := uiprogress.AddBar(100)
+	bar := progress.AddBar(100)
 	bar.Width = 50
 	bar.Empty = ' '
 
-	// Display the message (first line)
 	bar.PrependFunc(func(b *uiprogress.Bar) string {
-		return fmt.Sprintf("%s\nProgress:", message)
+		return "Progress:"
 	})
 
-	// Display the percentage (after progress bar)
 	bar.AppendFunc(func(b *uiprogress.Bar) string {
 		percentage := strutil.PadLeft(fmt.Sprintf("%d%%", b.Current()), 4, ' ')
 		if b.Current() >= 100 {
@@ -32,6 +31,5 @@ func ShowDownloadProgress(message string) *uiprogress.Bar {
 		return cyan(percentage)
 	})
 
-	// Return the bar so caller can update it
 	return bar
 }

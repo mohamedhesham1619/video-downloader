@@ -25,9 +25,24 @@ type Config struct {
 
 	// the encoder to use for re-encoding if ShouldUseEncoder is true
 	Encoder string
+
+	// browser to source cookies from (e.g. "chrome", "firefox"). Empty means no cookies.
+	CookiesBrowser string
 }
 
 func New(shouldReEncode bool, videoFormat models.VideoFormat) *Config {
+	return newConfig(shouldReEncode, videoFormat)
+}
+
+// WithCookiesBrowser returns a shallow copy of the config with CookiesBrowser set.
+// Use this for retry passes to avoid re-parsing flags.
+func (c *Config) WithCookiesBrowser(browser string) *Config {
+	copy := *c
+	copy.CookiesBrowser = browser
+	return &copy
+}
+
+func newConfig(shouldReEncode bool, videoFormat models.VideoFormat) *Config {
 
 	downloadPathFlag := flag.String("path", "", "path to the download directory (the default is the current directory)")
 

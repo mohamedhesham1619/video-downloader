@@ -2,6 +2,7 @@ package ui
 
 import (
 	"downloader/internal/models"
+	"fmt"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -53,4 +54,26 @@ func PromptClipDownloadMethod() (shouldReEncode bool, err error) {
 	shouldReEncode = strings.Contains(selectedOption, "Accurate")
 
 	return shouldReEncode, nil
+}
+
+// PromptCookieRetry asks the user whether to retry failed YouTube downloads using browser cookies.
+func PromptCookieRetry(count int) (bool, error) {
+	var selected string
+	prompt := &survey.Select{
+		Message: fmt.Sprintf("%d YouTube video(s) failed because sign-in is required. Retry using browser cookies?", count),
+		Options: []string{"Yes", "No"},
+	}
+	err := survey.AskOne(prompt, &selected)
+	return selected == "Yes", err
+}
+
+// PromptBrowser asks the user which browser to extract cookies from.
+func PromptBrowser() (string, error) {
+	var selected string
+	prompt := &survey.Select{
+		Message: "Which browser are you signed into YouTube with?",
+		Options: []string{"chrome", "firefox", "edge", "brave", "opera", "safari"},
+	}
+	err := survey.AskOne(prompt, &selected)
+	return selected, err
 }
