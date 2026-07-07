@@ -238,6 +238,13 @@ func downloadYtDlp() error {
 		return fmt.Errorf("cannot download yt-dlp: %w", err)
 	}
 
+	// make executable on Linux/macOS
+	if osType != "windows" {
+		if err := os.Chmod(destPath, 0755); err != nil {
+			return fmt.Errorf("cannot set executable permissions: %w", err)
+		}
+	}
+
 	return nil
 }
 
