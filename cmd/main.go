@@ -51,6 +51,20 @@ func main() {
 		}
 	}
 
+	// If a URL appears multiple times, assign a 1-based sequential index to each request
+	urlCounts := make(map[string]int)
+	for _, req := range downloadRequests {
+		urlCounts[req.Url]++
+	}
+
+	urlCurrentIndex := make(map[string]int)
+	for i := range downloadRequests {
+		if urlCounts[downloadRequests[i].Url] > 1 {
+			urlCurrentIndex[downloadRequests[i].Url]++
+			downloadRequests[i].Index = urlCurrentIndex[downloadRequests[i].Url]
+		}
+	}
+
 	// Only show setup prompts if there are video requests
 	preferredFormat := models.FormatAny
 	shouldReEncode := false
@@ -124,11 +138,13 @@ func main() {
 			}
 
 			// Build retry requests from the failed URLs
-			retryRequests := make([]models.DownloadRequest, len(signInErrors))
-			for i, e := range signInErrors {
-				for _, req := range downloadRequests {
-					if req.Url == e.URL {
-						retryRequests[i] = req
+			used := make([]bool, len(downloadRequests))
+			retryRequests := make([]models.DownloadRequest, 0, len(signInErrors))
+			for _, e := range signInErrors {
+				for j, req := range downloadRequests {
+					if !used[j] && req.Url == e.URL {
+						used[j] = true
+						retryRequests = append(retryRequests, req)
 						break
 					}
 				}
@@ -174,14 +190,19 @@ func main() {
 func buildProgressLabels(req models.DownloadRequest) []string {
 	var lines []string
 
+	indexSuffix := ""
+	if req.Index > 0 {
+		indexSuffix = fmt.Sprintf(" #%d", req.Index)
+	}
+
 	if req.IsAudioOnly {
 		if req.IsClip {
 			durationText := utils.FormatClipDurationText(req.ClipTimeRange)
-			lines = append(lines, fmt.Sprintf("Downloading audio clip %s", color.CyanString("(best quality)")))
+			lines = append(lines, fmt.Sprintf("Downloading audio clip%s %s", indexSuffix, color.CyanString("(best quality)")))
 			lines = append(lines, fmt.Sprintf("Duration: %s", durationText))
 			lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 		} else {
-			lines = append(lines, fmt.Sprintf("Downloading full audio %s", color.CyanString("(best quality)")))
+			lines = append(lines, fmt.Sprintf("Downloading full audio%s %s", indexSuffix, color.CyanString("(best quality)")))
 			lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 		}
 		return lines
@@ -193,11 +214,11 @@ func buildProgressLabels(req models.DownloadRequest) []string {
 	}
 	if req.IsClip {
 		durationText := utils.FormatClipDurationText(req.ClipTimeRange)
-		lines = append(lines, fmt.Sprintf("Downloading clip %s", color.CyanString(quality)))
+		lines = append(lines, fmt.Sprintf("Downloading clip%s %s", indexSuffix, color.CyanString(quality)))
 		lines = append(lines, fmt.Sprintf("Duration: %s", durationText))
 		lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 	} else {
-		lines = append(lines, fmt.Sprintf("Downloading full video %s", color.CyanString(quality)))
+		lines = append(lines, fmt.Sprintf("Downloading full video%s %s", indexSuffix, color.CyanString(quality)))
 		lines = append(lines, fmt.Sprintf("URL: %s", req.Url))
 	}
 	return lines

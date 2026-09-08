@@ -14,4 +14,5 @@ type DownloadRequest struct {
 	IsClip        bool
 	ClipTimeRange string // should be in the format HH:MM:SS-HH:MM:SS
 	IsAudioOnly   bool
+	Index         int // 1-based index if multiple downloads exist for the same URL; 0 if single
 }

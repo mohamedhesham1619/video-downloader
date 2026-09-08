@@ -97,24 +97,31 @@ func (d *Downloader) Download(videoRequest models.DownloadRequest) <-chan int {
 	return progressChan
 }
 
+// buildOutputPath generates the yt-dlp output template path.
+// When index > 0 (multiple downloads for the same URL), an index suffix is added (e.g., -1, -2).
+func (d *Downloader) buildOutputPath(isAudioOnly bool, index int) string {
+	if isAudioOnly {
+		if index > 0 {
+			return filepath.Join(d.config.DownloadPath, fmt.Sprintf("%%(title).50s-%d-audio.%%(ext)s", index))
+		}
+		return filepath.Join(d.config.DownloadPath, "%(title).50s-audio.%(ext)s")
+	}
+
+	if index > 0 {
+		return filepath.Join(d.config.DownloadPath, fmt.Sprintf("%%(title).50s-%d-%%(height)sp.%%(ext)s", index))
+	}
+	return filepath.Join(d.config.DownloadPath, "%(title).50s-%(height)sp.%(ext)s")
+}
+
 // prepare the command to download the whole video
 func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
-	var downloadPath string
+	downloadPath := d.buildOutputPath(req.IsAudioOnly, req.Index)
 	var format string
 
 	if req.IsAudioOnly {
-		// yt-dlp output template for audio: "%(title).50s-audio.%(ext)s"
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-audio.%(ext)s")
 		format = "ba"
 	} else {
-		// yt-dlp output template: "%(title).50s-%(height)sp.%(ext)s"
-		// - %(title)s: video title from metadata
-		// - .50s: limits title to 50 characters to avoid byte-length issues with multi-byte chars (Arabic/Emojis)
-		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
-		// - %(ext)s: file extension based on selected format
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-%(height)sp.%(ext)s")
-
 		isYoutubeUrl := utils.IsYouTubeURL(req.Url)
 		format = getYtdlpFormat(isYoutubeUrl, req.Quality, d.config.VideoFormat)
 	}
@@ -157,22 +164,12 @@ func (d *Downloader) buildFullDownloadCommand(req models.DownloadRequest) *exec.
 // prepare the command to download a clip of the video
 func (d *Downloader) buildClipDownloadCommand(req models.DownloadRequest) *exec.Cmd {
 
-	var downloadPath string
+	downloadPath := d.buildOutputPath(req.IsAudioOnly, req.Index)
 	var format string
 
 	if req.IsAudioOnly {
-		// yt-dlp output template for audio: "%(title).50s-audio.%(ext)s"
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-audio.%(ext)s")
 		format = "ba"
 	} else {
-		// Prepare the download path with the video title
-		// yt-dlp output template: "%(title).50s-%(height)sp.%(ext)s"
-		// - %(title)s: video title from metadata
-		// - .50s: limits title to 50 characters to avoid byte-length issues with multi-byte chars
-		// - %(height)sp: adds resolution height (e.g., 1080p, 720p)
-		// - %(ext)s: file extension based on selected format
-		downloadPath = filepath.Join(d.config.DownloadPath, "%(title).50s-%(height)sp.%(ext)s")
-
 		isYouTubeURL := utils.IsYouTubeURL(req.Url)
 		format = getYtdlpFormat(isYouTubeURL, req.Quality, d.config.VideoFormat)
 	}
