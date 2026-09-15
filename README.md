@@ -8,17 +8,16 @@
   <a href="https://github.com/yt-dlp/yt-dlp">
     <img src="https://img.shields.io/badge/Powered_by-yt--dlp-FF4C4C?style=flat-square" alt="Powered by yt-dlp">
   </a>
-  <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">
-<img src="https://img.shields.io/badge/1000+-Supported_Sites-8E44AD?style=flat-square" alt="Supported Sites">
+  <a href="https://github.com/mohamedhesham1619/video-downloader/releases">
+    <img src="https://img.shields.io/github/downloads/mohamedhesham1619/video-downloader/total?style=flat-square&label=Downloads&color=8E44AD" alt="Downloads">
   </a>
 </p>
 
 <p>
   <a href="https://github.com/mohamedhesham1619/video-downloader/releases/latest">
-    <img src="https://img.shields.io/github/v/release/mohamedhesham1619/video-downloader?style=flat-square&label=Download%20Latest&color-FDCB6E" alt="Download Latest">
+    <img src="https://img.shields.io/github/v/release/mohamedhesham1619/video-downloader?style=for-the-badge&logo=github&logoColor=white&label=Download%20Latest&color=2EA44F" alt="Download Latest">
   </a>
 </p>
-
 
 
 </div>
@@ -62,10 +61,10 @@ Go to [Releases](https://github.com/mohamedhesham1619/video-downloader/releases)
 Supported systems:
 
 - Windows (fully tested) ✓
+- Linux (fully tested) ✓
 - macOS (untested)
-- Linux (untested)
 
-> Note: Only the Windows version has been thoroughly tested. macOS and Linux versions should work but haven't been verified yet. If you encounter issues, please report them.
+> Note: Windows and Linux versions have been thoroughly tested. The macOS version should work but hasn't been verified yet. If you encounter issues, please report them.
 
 ### Step 2: Extract
 Unzip the downloaded file to a location of your choice.
